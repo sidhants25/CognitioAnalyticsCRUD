@@ -1,5 +1,7 @@
 const pool = require('../../db');
-const queries = require('./queries')
+const queries = require('./queries');
+const { generateToken, comparePasswords } = require('./auth');
+
 
 const getEmployees = (req, res) => {
     console.log("getEmployees");
@@ -17,8 +19,25 @@ const getEmployeeById = (req, res) => {
     });
 };
 
-const addEmployee = (req, res) => {
+const addEmployee = async (req, res) => {
     const {name, email, age, dob} = req.body;
+    try {
+        const token = req.headers.authorization.split(' ')[1];
+        const userId = verifyToken(token);
+        if (!userId) {
+          return res.status(401).send('Unauthorized');
+        }
+        
+        const user = await pool.query(queries.getUserById, [userId]);
+        if (!user.rows.length) {
+          return res.status(401).send('Unauthorized');
+        }
+    
+        const isPasswordValid = await comparePasswords(password, user.rows[0].password);
+        if (!isPasswordValid) {
+          return res.status(401).send('Unauthorized');
+        }
+
     pool.query(queries.checkEmailExists, [email], (error,results) => {
         if (results.rows.length) {
             res.send("Email in use.");
@@ -31,6 +50,11 @@ const addEmployee = (req, res) => {
         }
         );
     });
+
+    } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal Server Error');
+  }
 };
 
 const deleteEmployee = (req, res) => {
